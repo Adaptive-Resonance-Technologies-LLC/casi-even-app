@@ -1,39 +1,64 @@
-# CASI Even Hub Mini-App (EHPK)
+# CASI EHPK Proxy Frontend (v1.1.0)
 
-This is the standalone Vue/React (Vite) Web Application designed to be packaged as a developer **Even Hub** `.ehpk` app. It serves as the dedicated CASI bridge between your physical Even Realities G2 glasses and the native CASI Android App running on your phone.
+This project contains the Even Realities frontend interface (EHPK) designed for the CASI architecture.
 
-## Aesthetic & Design 
+## Architecture
 
-This application uses the strict layout paradigms extracted directly from the official **Even Realities Design Guidelines Figma**:
-- Typography utilizes strict negative letter-spacing (`-0.15px` to `-0.72px`) across an `Inter` fallback font (mapping the proprietary FK font requirements).
-- Layout geometry perfectly conforms to the Even companion app logic: `16px` margins on screens, `12px` inner card padding, and hierarchical cross-element spacing (`12px` vs `24px`).
-- Deep monochrome colors rather than generic glassmorphism, ensuring visual consistency with the host ecosystem.
+The CASI architecture separates the Even Realities API bridge from the local Android application.
+This frontend Application exclusively polls and interacts with the proxy routing services on `art-infra1.tailb6aa6c.ts.net`.
 
-## How It Works
-1. **The SDK**: It leverages `@evenrealities/even_hub_sdk` to send commands directly to the glasses over the official BLE tunnel.
-2. **The Data Tunnel ("The Smuggling Connector")**: It silently polls the `localhost:8923` HTTP server running inside your native CASI app. When the background CASI app gets a request to push a markdown file to the glasses, it sends it via this local server. Our mini-app catches that payload and renders it directly onto the HUD using the Even SDK `textContainerUpgrade` pipeline.
+### HUD Layout (576 × 288 canvas)
 
-## Usage & Development
-
-### Local Testing
-To test the UI or make changes without building for production:
-```bash
-npm run dev
+```
+┌──────────────────────────────────────────────────────────┐
+│ CASI:       [misc notification]            HH:MM:SS     │  ← top bar (y=20)
+│ (ID 3)          (ID 4)                      (ID 2)      │
+│                                                          │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │         Main Notification / Prompter Text          │  │  ← body (ID 1, y=65)
+│  │              Double-tap to dismiss                 │  │
+│  └────────────────────────────────────────────────────┘  │
+└──────────────────────────────────────────────────────────┘
 ```
 
-### Packaging the `.ehpk`
-To build the application for sideloading into the Even App Developer Portal:
-```bash
-npm run build:ehpk
-```
-This command runs Vite's build process into `dist/`, and then compresses the distribution files into a top-level `casi-app.ehpk` ZIP archive.
+| Container | ID | Position | Size | Content |
+|---|---|---|---|---|
+| Status | 3 | x=10, y=20 | 140×40 | `"CASI:"` (static label) |
+| Misc | 4 | x=160, y=20 | 250×40 | Short notifications from relay |
+| Clock | 2 | x=440, y=20 | 136×40 | `HH:MM:SS` EST from art-infra1 |
+| Main | 1 | x=30, y=65 | 516×210 | Notification text (double-tap clears) |
 
-### Deploying to Even Hub
-1. Transfer the compiled `casi-app.ehpk` file to your mobile device or desktop.
-2. Open the Even App's developer settings.
-3. Import the `.ehpk` file directly into your developer library.
-4. The CASI Icon will now appear natively inside your HUD menus and companion app!
+### Communication Flow
+1. **Frontend**: The React application polls `https://art-infra1.tailb6aa6c.ts.net/glasses-response` every 1 second for text, clock, and notification data.
+2. **Backend Relay**: The Python FastAPI server on `art-infra1:8923` handles state management and CORS.
+3. **Android Client**: The companion Android application exclusively hosts AI models and processes background jobs.
 
-## Configuration Notes
-- If the port of the CASI Android `GlassesAudioBridgeService` changes from `8923`, remember to update `src/App.tsx`.
-- Keep the `createStartUpPageContainer` strictly limited to initialization as per SDK rules. Dynamic visual updates are exclusively handled via `textContainerUpgrade`.
+### Relay API Endpoints
+
+| Method | Endpoint | Purpose |
+|---|---|---|
+| `GET` | `/glasses-response` | Poll: returns `response`, `server_time`, `misc_notification`, `mode`, `timer_end` |
+| `POST` | `/inject-markdown` | Inject main notification text (`{"response": "..."}`) |
+| `POST` | `/inject-misc` | Inject short misc notification (`{"text": "..."}`) |
+| `POST` | `/inject-timer` | Set countdown timer (`{"duration_seconds": N}`) |
+| `POST` | `/clear-notification` | Clear main notification (called on double-tap dismiss) |
+| `POST` | `/glasses-interaction` | Report glasses input events |
+| `GET` | `/glasses-interaction` | Dequeue next interaction event |
+
+### Interactions
+- **Double-tap**: Clears the main notification (container 1) and resets server-side state via `POST /clear-notification`
+- **Other events**: Forwarded to relay via `POST /glasses-interaction`
+
+## Deployment Notes
+
+To upload a new version:
+1. Bump version locally in `package.json` and `app.json`
+2. `npm run build:ehpk`
+3. Send `.ehpk` directly to Google Drive `For Upload to sb1`
+4. Commit to `casi-even-app` repository on GitHub
+
+### CORS Configuration
+When setting up new relay servers for the EHPK frontend, verify the relay explicitly allows Cross-Origin requests. `fetch()` requests executed from the embedded WebView engine inside the Even Realities companion app will fail completely and block rendering if the target server does not output standard `Access-Control-Allow-Origin: *` headers.
+
+### Tailscale Serve Configuration
+The relay must be proxied via `tailscale serve --set-path / http://localhost:8923` on `art-infra1`. The serve routing targets port **8923** specifically — if this is misconfigured (e.g., pointing to 8924), external requests will return 502 Bad Gateway while the relay responds fine locally.
