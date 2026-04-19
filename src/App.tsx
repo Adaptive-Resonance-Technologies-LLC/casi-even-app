@@ -261,7 +261,7 @@ function App() {
       </div>
 
       <div className="even-card">
-        <h2 className="title-normal">Protocol Log (v1.1.0)</h2>
+        <h2 className="title-normal">Protocol Log (v1.1.1)</h2>
         <p className="detail-normal info-text">
           Keep this app open in the Even App to maintain background BLE connectivity with the HUD. Double-tap the glasses to dismiss the active notification.
         </p>
