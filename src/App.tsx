@@ -119,7 +119,7 @@ function App() {
                    // Tell relay to clear server-side state
                    await fetch(`${RELAY_BASE}/clear-notification`, {
                        method: "POST",
-                       headers: { "Content-Type": "application/json" },
+                       headers: { "Content-Type": "application/json", "X-API-Key": "casi-ehpk-9a2f7c04b8" },
                    }).catch(() => {});
                    return;
                }
@@ -128,7 +128,7 @@ function App() {
                if (interactionType !== null) {
                    await fetch(`${RELAY_BASE}/glasses-interaction`, {
                        method: "POST",
-                       headers: { "Content-Type": "application/json" },
+                       headers: { "Content-Type": "application/json", "X-API-Key": "casi-ehpk-9a2f7c04b8" },
                        body: JSON.stringify({ type: interactionType, timestamp: Date.now() })
                    });
                }
@@ -147,7 +147,9 @@ function App() {
 
     const interval = setInterval(async () => {
       try {
-        const remoteRes = await fetch(`${RELAY_BASE}/glasses-response`).catch(() => null);
+        const remoteRes = await fetch(`${RELAY_BASE}/glasses-response`, {
+            headers: { "X-API-Key": "casi-ehpk-9a2f7c04b8" }
+        }).catch(() => null);
 
         let mergedData = {
           response: "",
@@ -261,7 +263,7 @@ function App() {
       </div>
 
       <div className="even-card">
-        <h2 className="title-normal">Protocol Log (v1.1.1)</h2>
+        <h2 className="title-normal">Protocol Log (v1.1.2)</h2>
         <p className="detail-normal info-text">
           Keep this app open in the Even App to maintain background BLE connectivity with the HUD. Double-tap the glasses to dismiss the active notification.
         </p>
