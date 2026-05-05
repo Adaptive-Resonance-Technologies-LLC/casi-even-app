@@ -1,4 +1,4 @@
-# CASI EHPK Proxy Frontend (v1.1.0)
+# CASI EHPK Proxy Frontend (v1.3.2)
 
 This project contains the Even Realities frontend interface (EHPK) designed for the CASI architecture.
 
@@ -6,6 +6,17 @@ This project contains the Even Realities frontend interface (EHPK) designed for 
 
 The CASI architecture separates the Even Realities API bridge from the local Android application.
 This frontend Application exclusively polls and interacts with the proxy routing services on `art-infra1.tailb6aa6c.ts.net`.
+
+### Operating Mode (v1.3.2 — Headless ASR)
+
+As of v1.3.2, the EHPK operates in a **"start-and-forget" headless** mode:
+- **No visible transcription** — the ASR transcript overlay on the HUD has been removed
+- **Silent audio streaming** — microphone audio continues to relay silently to both the Android Vosk engine and the Trixie2 Hailo NPU
+- **Automatic dual-persistence** — both raw audio and transcripts are automatically persisted to `lb-supabase` whenever the mic is active
+
+The phone dashboard shows only:
+1. Connection status (bridge link)
+2. Mic stream status (active/inactive)
 
 ### HUD Layout (576 × 288 canvas)
 
@@ -31,7 +42,17 @@ This frontend Application exclusively polls and interacts with the proxy routing
 ### Communication Flow
 1. **Frontend**: The React application polls `https://art-infra1.tailb6aa6c.ts.net/glasses-response` every 1 second for text, clock, and notification data.
 2. **Backend Relay**: The Python FastAPI server on `art-infra1:8923` handles state management and CORS.
-3. **Android Client**: The companion Android application exclusively hosts AI models and processes background jobs.
+3. **Android Client**: The companion Android application hosts the Vosk ASR engine, buffers raw audio, and pushes both transcripts and audio chunks to `lb-supabase` automatically.
+4. **Trixie2 (Hailo NPU)**: Audio is also relayed to the Hailo-8 NPU for Whisper-based ASR transcription, writing to the same Supabase tables with engine tag `HAILO_NPU`.
+
+### Data Persistence (v1.3.2)
+
+| Destination | Data | Engine Tag |
+|---|---|---|
+| Supabase `asr_sessions` | Session metadata (start/end, status) | `VOSK_ON_DEVICE` |
+| Supabase `asr_transcripts` | Final transcript segments | `VOSK_ON_DEVICE` / `HAILO_NPU` |
+| Supabase `asr_audio_chunks` | Raw PCM audio (30s chunks, hex-encoded BYTEA) | `VOSK_ON_DEVICE` |
+| SilverBullet Wiki | Incremental session transcript (markdown) | N/A |
 
 ### Relay API Endpoints
 
@@ -49,6 +70,18 @@ This frontend Application exclusively polls and interacts with the proxy routing
 - **Double-tap**: Clears the main notification (container 1) and resets server-side state via `POST /clear-notification`
 - **Other events**: Forwarded to relay via `POST /glasses-interaction`
 
+## Version History
+
+| Version | Changes |
+|---|---|
+| 1.3.7 | Shifted active UI container IDs to 21/23 and forced rendering of empty containers for IDs 1-10 to reliably clear stuck legacy UI elements from the glasses cache. |
+| 1.3.6 | Explicitly initialize and clear legacy UI containers (like transcripts) to purge them from glasses cache. |
+| 1.3.5 | Fixed versioning sync issue and ensured headless ASR is properly deployed. |
+| 1.3.2 | Headless ASR — removed HUD transcription, added Supabase dual-persistence (transcripts + raw audio) |
+| 1.3.1 | Bug fixes for bridge initialization and appMenu launch handling |
+| 1.3.0 | Added on-device Vosk ASR with real-time HUD transcription and SilverBullet sync |
+| 1.1.0 | Initial Even Hub proxy frontend with notification display |
+
 ## Deployment Notes
 
 To upload a new version:
@@ -62,3 +95,4 @@ When setting up new relay servers for the EHPK frontend, verify the relay explic
 
 ### Tailscale Serve Configuration
 The relay must be proxied via `tailscale serve --set-path / http://localhost:8923` on `art-infra1`. The serve routing targets port **8923** specifically — if this is misconfigured (e.g., pointing to 8924), external requests will return 502 Bad Gateway while the relay responds fine locally.
+

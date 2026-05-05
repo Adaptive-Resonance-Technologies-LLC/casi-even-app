@@ -2,19 +2,25 @@
   "package_id": "com.art.casi",
   "edition": "202601",
   "name": "CASI",
-  "version": "1.1.40",
+  "version": "1.3.7",
   "min_app_version": "2.0.0",
   "min_sdk_version": "0.0.10",
   "entrypoint": "index.html",
   "permissions": [
     {
       "name": "network",
-      "desc": "This app needs to connect to the CASI Android host service.",
+      "desc": "Connects to CASI Android host and relay for headless audio and transcript persistence.",
       "whitelist": [
         "http://localhost:8923",
         "http://127.0.0.1:8081",
+        "http://localhost:8080",
+        "http://127.0.0.1:8080",
         "https://art-infra1.tailb6aa6c.ts.net"
       ]
+    },
+    {
+      "name": "g2-microphone",
+      "desc": "Streams PCM audio to server for background ASR and raw audio persistence."
     }
   ],
   "supported_languages": [
